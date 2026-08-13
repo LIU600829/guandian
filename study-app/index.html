@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#F6C63D" />
+    <title>光研营 - 研学管理原型</title>
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="主导航">
+        <div class="brand">
+          <div class="brand-mark">光</div>
+          <div>
+            <strong>光研营</strong>
+            <span>研学管理</span>
+          </div>
+        </div>
+        <nav class="nav-list" id="desktopNav"></nav>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Windows / Mobile PWA Prototype</p>
+            <h1 id="pageTitle">今日总览</h1>
+          </div>
+          <div class="top-actions">
+            <button class="icon-button" id="notifyButton" aria-label="查看通知" title="查看通知">🔔</button>
+            <button class="primary-button" id="quickEnrollButton">快速报名</button>
+          </div>
+        </header>
+
+        <section class="hero-strip" aria-label="项目概览">
+          <div class="hero-copy">
+            <span class="status-pill">光电研学 · 初中友好</span>
+            <h2>把课程、报名、日程和反馈放在同一个清晰工作台。</h2>
+            <p>前端模拟版已覆盖核心闭环，适合继续确认信息结构和交互流程。</p>
+          </div>
+          <div class="light-card" aria-hidden="true">
+            <div class="sun-core"></div>
+            <div class="spark s1"></div>
+            <div class="spark s2"></div>
+            <div class="spark s3"></div>
+          </div>
+        </section>
+
+        <section class="content-area" id="contentArea"></section>
+      </main>
+
+      <nav class="mobile-nav" id="mobileNav" aria-label="移动端导航"></nav>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <dialog class="modal" id="actionModal">
+      <form method="dialog">
+        <div class="modal-header">
+          <h3 id="modalTitle">操作</h3>
+          <button class="icon-button" value="close" aria-label="关闭">×</button>
+        </div>
+        <div id="modalBody"></div>
+        <div class="modal-actions">
+          <button class="ghost-button" value="close">取消</button>
+          <button class="primary-button" id="modalSubmit" value="default">确认</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
