@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f6c63d" />
+    <title>家长 / 学生端 - 光电研学</title>
+    <link rel="stylesheet" href="../shared/app.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">光</div>
+          <div><strong>光电研学</strong><span>家长 / 学生端</span></div>
+        </div>
+        <a class="workspace-switcher" href="../">切换工作空间 →</a>
+        <nav class="nav-list" id="desktopNav" aria-label="家长学生端导航"></nav>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Parent & Student Service</p>
+            <h1 id="pageTitle">我的研学</h1>
+          </div>
+          <div class="top-actions">
+            <button class="icon-button" id="notifyButton" title="查看通知" aria-label="查看通知">铃</button>
+            <button class="primary-button" id="quickEnrollButton">快速报名</button>
+          </div>
+        </header>
+
+        <section class="hero-strip">
+          <div class="hero-copy">
+            <span class="status-pill">今天也有新发现</span>
+            <h2>课程、报名、日程和成长记录，都在这里。</h2>
+            <p>家长可以代孩子报名，学生可以查看任务、签到和结课证书。</p>
+          </div>
+          <div class="light-card" aria-hidden="true">
+            <div class="sun-core"></div><div class="spark s1"></div><div class="spark s2"></div><div class="spark s3"></div>
+          </div>
+        </section>
+
+        <section class="content-area" id="contentArea"></section>
+      </main>
+
+      <nav class="mobile-nav" id="mobileNav" aria-label="移动端导航"></nav>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <dialog class="modal" id="actionModal">
+      <form method="dialog">
+        <div class="modal-header">
+          <h3 id="modalTitle">操作</h3>
+          <button class="icon-button" value="close" aria-label="关闭">×</button>
+        </div>
+        <div id="modalBody"></div>
+        <div class="modal-actions">
+          <button class="ghost-button" value="close">取消</button>
+          <button class="primary-button" id="modalSubmit" value="default">确认</button>
+        </div>
+      </form>
+    </dialog>
+    <script src="./app.js"></script>
+  </body>
+</html>
