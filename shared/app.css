@@ -187,12 +187,37 @@ textarea { min-height: 98px; resize: vertical; }
 .certificate h3 { font-size: 24px; color: var(--yellow-deep); }
 .back-link { display: inline-flex; margin-bottom: 18px; color: var(--blue); font-size: 13px; font-weight: 800; }
 .empty-state { padding: 28px; border: 1px dashed var(--line); border-radius: var(--radius); color: var(--muted); text-align: center; }
+.qr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.qr-card { display: grid; gap: 12px; align-content: start; }
+.qr-image {
+  display: block;
+  width: min(190px, 100%);
+  aspect-ratio: 1;
+  margin: 4px auto;
+  border: 10px solid #fff;
+  border-radius: var(--radius);
+  box-shadow: 0 10px 22px rgba(15,23,42,.08);
+}
+.qr-link {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--blue);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.survey-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
 
 @media (max-width: 980px) {
   .portal { grid-template-columns: 1fr; } .portal-visual { display: none; }
   .app-shell { grid-template-columns: 1fr; } .sidebar { display: none; }
   .main { padding: 18px 16px 92px; } .hero-strip { grid-template-columns: 1fr; }
-  .stats-grid, .card-grid, .two-grid { grid-template-columns: 1fr 1fr; }
+  .stats-grid, .card-grid, .two-grid, .qr-grid { grid-template-columns: 1fr 1fr; }
   .mobile-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 8px; border-top: 1px solid var(--line); background: rgba(255,255,255,.94); backdrop-filter: blur(14px); }
   .mobile-nav .nav-item { justify-content: center; min-height: 48px; padding: 6px; font-size: 12px; } .mobile-nav .nav-label { display: none; }
 }
@@ -201,6 +226,6 @@ textarea { min-height: 98px; resize: vertical; }
   .portal-hero { padding: 26px 20px 38px; } .status-pill { margin-top: 38px; } .portal h1 { font-size: 36px; }
   .topbar, .section-head { align-items: flex-start; flex-direction: column; } h1 { font-size: 24px; } h2 { font-size: 20px; }
   .top-actions { width: 100%; } .top-actions .primary-button { flex: 1; }
-  .stats-grid, .card-grid, .two-grid { grid-template-columns: 1fr; } .hero-strip { padding: 16px; } .card { padding: 14px; }
+  .stats-grid, .card-grid, .two-grid, .qr-grid, .survey-details { grid-template-columns: 1fr; } .hero-strip { padding: 16px; } .card { padding: 14px; }
   .toast { right: 12px; bottom: 82px; left: 12px; max-width: none; }
 }

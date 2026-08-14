@@ -1,0 +1,14 @@
+{
+  "name": "guandian-study-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "光电研学软件原型，包含学校管理端、家长学生端和扫码问卷服务。",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check backend/app.js && node --check mobile/app.js && node --check frontend/app.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f6c63d" />
+    <title>扫码提交 - 光电研学</title>
+    <link rel="stylesheet" href="../shared/app.css" />
+  </head>
+  <body class="portal-page">
+    <main class="portal" style="grid-template-columns: 1fr; min-height: auto; max-width: 720px">
+      <section class="portal-hero">
+        <div class="brand-lockup">
+          <div class="brand-mark">光</div>
+          <div>
+            <strong>光电研学</strong>
+            <span id="modeName">扫码提交</span>
+          </div>
+        </div>
+        <span class="status-pill">手机扫码入口</span>
+        <h1 id="pageTitle">研学报名</h1>
+        <p id="pageIntro">填写信息后，学校管理端会自动看到新的报名记录。</p>
+
+        <form class="card form-card survey-form" id="mobileForm" style="margin-top: 24px">
+          <label>学生姓名<input id="nameInput" autocomplete="name" required placeholder="请输入学生姓名" /></label>
+          <label id="parentField">家长姓名<input id="parentInput" autocomplete="name" placeholder="请输入家长姓名" /></label>
+          <label>联系电话<input id="phoneInput" autocomplete="tel" required placeholder="请输入联系电话" /></label>
+          <label>选择课程<select id="courseInput"></select></label>
+          <label id="schoolField">所在学校<input id="schoolInput" placeholder="例如：光电实验学校" /></label>
+          <label id="gradeField">年级班级<input id="gradeInput" placeholder="例如：初一 3 班" /></label>
+          <label id="emergencyField">紧急联系人<input id="emergencyInput" autocomplete="tel" placeholder="可填写备用联系电话" /></label>
+          <label id="noteField">补充说明<textarea id="noteInput" placeholder="如有过敏、接送、特殊照顾等情况可填写"></textarea></label>
+          <button class="primary-button" type="submit" id="submitButton">提交报名</button>
+        </form>
+
+        <div class="empty-state" id="resultBox" style="display:none; margin-top: 14px"></div>
+      </section>
+    </main>
+    <script src="./app.js"></script>
+  </body>
+</html>
