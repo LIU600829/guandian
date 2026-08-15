@@ -20,10 +20,12 @@ const initialNotices = ["还有报名等待审核。", "活动安全须知建议
 const state = {
   active: "dashboard",
   serverOnline: false,
+  wjxEnrollUrl: localStorage.getItem("guandian-wjx-enroll-url") || "",
   config: {
     publicBaseUrl: location.origin,
     enrollUrl: `${location.origin}/mobile/?mode=enroll`,
     checkinUrl: `${location.origin}/mobile/?mode=checkin`,
+    statusUrl: `${location.origin}/mobile/?mode=status`,
   },
   courses: [...defaultCourses],
   enrollments: [
@@ -85,6 +87,14 @@ function qrUrl(targetUrl, size = 190) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=10&data=${encodeURIComponent(targetUrl)}`;
 }
 
+function enrollTargetUrl() {
+  return state.wjxEnrollUrl || state.config.enrollUrl;
+}
+
+function webhookUrl() {
+  return `${state.config.publicBaseUrl}/api/wjx-webhook`;
+}
+
 function renderQrCard(title, detail, targetUrl, actionId) {
   const onlineLabel = state.serverOnline ? "互动服务在线" : "需要启动互动服务";
   return `
@@ -104,8 +114,9 @@ function renderQrCard(title, detail, targetUrl, actionId) {
 function renderScanPanel() {
   return `
     <div class="grid qr-grid">
-      ${renderQrCard("扫码报名二维码", "家长或学生扫码填写报名信息，提交后会进入报名审核列表。", state.config.enrollUrl, "copy-enroll-url")}
+      ${renderQrCard(state.wjxEnrollUrl ? "问卷星报名二维码" : "扫码报名二维码", state.wjxEnrollUrl ? "家长或学生扫码后进入问卷星填写基础信息。" : "家长或学生扫码填写报名信息，提交后会进入报名审核列表。", enrollTargetUrl(), "copy-enroll-url")}
       ${renderQrCard("现场签到二维码", "活动现场学生扫码签到，提交后会进入签到列表。", state.config.checkinUrl, "copy-checkin-url")}
+      ${renderQrCard("报名状态查询二维码", "用户输入报名手机号后，可以查看审核结果和课程通知。", state.config.statusUrl, "copy-status-url")}
     </div>
   `;
 }
@@ -170,10 +181,31 @@ function renderEnrollments() {
       </section>
       <section class="card">
         <h3>扫码报名入口</h3>
-        <p>把二维码发给家长或展示在现场，手机提交后此页面会自动刷新。</p>
-        ${renderQrCard("家长 / 学生报名", `当前已收到 ${scanList.length} 条扫码报名。`, state.config.enrollUrl, "copy-enroll-url")}
+        <p>${state.wjxEnrollUrl ? "当前报名二维码已连接问卷星。问卷星填写结果需要通过导出或数据推送同步。" : "把二维码发给家长或展示在现场，手机提交后此页面会自动刷新。"}</p>
+        ${renderWjxSettings()}
+        ${renderQrCard(state.wjxEnrollUrl ? "问卷星报名" : "家长 / 学生报名", `当前已收到 ${scanList.length} 条扫码报名。`, enrollTargetUrl(), "copy-enroll-url")}
       </section>
     </div>`;
+}
+
+function renderWjxSettings() {
+  return `
+    <div class="form-card embedded-panel">
+      <h3>问卷星连接</h3>
+      <label>问卷星发布链接<input id="wjxUrlInput" value="${state.wjxEnrollUrl}" placeholder="粘贴问卷星问卷链接，例如 https://www.wjx.cn/vm/xxxx.aspx" /></label>
+      <div class="action-row">
+        <button class="primary-button" data-action="save-wjx-url">保存问卷星链接</button>
+        <button class="ghost-button" data-action="clear-wjx-url">恢复内置问卷</button>
+      </div>
+      <label>数据推送地址<input value="${webhookUrl()}" readonly /></label>
+      <p>普通问卷星可先用链接收集信息；若账号支持数据推送/API，可把上面的地址填到问卷星推送配置里。</p>
+      <label>导入问卷星文件<input id="wjxFileInput" type="file" accept=".csv,.txt,.tsv,.xlsx,.xls,.docx,.pdf" /></label>
+      <div class="action-row">
+        <button class="tiny-button" data-action="import-wjx-file">导入报名数据</button>
+      </div>
+      <p>支持 Excel .xlsx/.xls、CSV、文本、Word .docx、PDF 和扫描 PDF OCR。</p>
+    </div>
+  `;
 }
 
 function renderSchedule() {
@@ -245,7 +277,10 @@ function render() {
 function mergeExternalData(store) {
   const localEnrollmentIds = new Set(state.enrollments.map((item) => String(item.id)));
   for (const item of store.enrollments || []) {
-    if (!localEnrollmentIds.has(String(item.id))) {
+    const existing = state.enrollments.find((enrollment) => String(enrollment.id) === String(item.id));
+    if (existing) {
+      Object.assign(existing, item);
+    } else if (!localEnrollmentIds.has(String(item.id))) {
       state.enrollments.unshift({ ...item, source: item.source || "扫码报名" });
     }
   }
@@ -297,13 +332,251 @@ async function copyText(text) {
   }
 }
 
+function parseDelimitedText(text) {
+  const rows = [];
+  let current = "";
+  let row = [];
+  let quoted = false;
+  const firstLine = text.split(/\r?\n/, 1)[0] || "";
+  const delimiter = firstLine.includes("\t") ? "\t" : ",";
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+    if (char === '"' && quoted && next === '"') {
+      current += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === delimiter && !quoted) {
+      row.push(current.trim());
+      current = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && next === "\n") index += 1;
+      row.push(current.trim());
+      if (row.some(Boolean)) rows.push(row);
+      row = [];
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  row.push(current.trim());
+  if (row.some(Boolean)) rows.push(row);
+
+  const headers = (rows.shift() || []).map((header) => header.replace(/^\uFEFF/, "").trim());
+  return rows.map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] || ""])));
+}
+
+function pickField(row, names) {
+  const entries = Object.entries(row);
+  const found = entries.find(([key]) => names.some((name) => key.includes(name)));
+  return found ? found[1] : "";
+}
+
+function normalizeTableRows(rows) {
+  return rows.map((row) => ({
+    name: pickField(row, ["学生姓名", "姓名"]),
+    parentName: pickField(row, ["家长姓名"]),
+    phone: pickField(row, ["联系电话", "手机号", "手机", "电话"]),
+    school: pickField(row, ["所在学校", "学校"]),
+    grade: pickField(row, ["年级班级", "年级", "班级"]),
+    course: pickField(row, ["报名课程", "课程"]),
+    emergencyPhone: pickField(row, ["紧急联系人", "备用电话"]),
+    note: pickField(row, ["补充说明", "备注"]),
+  })).filter((row) => row.name || row.phone);
+}
+
+async function readExcelRows(file) {
+  if (!window.XLSX) throw new Error("Excel 解析库未加载");
+  const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+  const rows = window.XLSX.utils.sheet_to_json(sheet, { defval: "" });
+  return normalizeTableRows(rows);
+}
+
+function extractTextField(text, labels) {
+  for (const label of labels) {
+    const pattern = new RegExp(`${label}\\s*[:：]?\\s*([^\\n\\r，,;；]+)`, "i");
+    const match = text.match(pattern);
+    if (match?.[1]) return match[1].trim();
+  }
+  return "";
+}
+
+function guessChineseName(text) {
+  const blocked = ["报名", "课程", "学校", "年级", "班级", "电话", "手机", "联系人", "紧急", "备注", "姓名", "家长", "学生", "问卷", "活动", "信息"];
+  const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const exact = lines.find((line) => /^[\u4e00-\u9fa5]{2,5}$/.test(line) && !blocked.some((word) => line.includes(word)));
+  if (exact) return exact;
+  const match = text.match(/(?:^|[\s：:，,])([\u4e00-\u9fa5]{2,4})(?=\s*(?:1[3-9]\d{9}|$|[\s，,]))/);
+  return match?.[1] && !blocked.some((word) => match[1].includes(word)) ? match[1] : "";
+}
+
+function guessSchool(text) {
+  return text.match(/([\u4e00-\u9fa5]{2,24}(?:学校|中学|小学|大学|学院))/)?.[1] || "";
+}
+
+function guessGrade(text) {
+  return text.match(/((?:初|高)[一二三123]\s*(?:\d{1,2}\s*)?班?|[一二三四五六123456]\s*年级\s*(?:\d{1,2}\s*)?班?)/)?.[1] || "";
+}
+
+function buildTextRow(section) {
+  const phoneMatch = section.match(/1[3-9]\d{9}/);
+  return {
+    name: extractTextField(section, ["学生姓名", "姓名"]) || guessChineseName(section),
+    parentName: extractTextField(section, ["家长姓名", "家长"]),
+    phone: extractTextField(section, ["联系电话", "手机号", "手机", "电话"]) || phoneMatch?.[0] || "",
+    school: extractTextField(section, ["所在学校", "学校"]) || guessSchool(section),
+    grade: extractTextField(section, ["年级班级", "年级", "班级"]) || guessGrade(section),
+    course: extractTextField(section, ["报名课程", "课程"]),
+    emergencyPhone: extractTextField(section, ["紧急联系人", "备用电话"]),
+    note: extractTextField(section, ["补充说明", "备注"]),
+  };
+}
+
+function parseSurveyText(text) {
+  const cleaned = text.replace(/\u00a0/g, " ").replace(/[ \t]+/g, " ").trim();
+  const phoneMatches = [...cleaned.matchAll(/1[3-9]\d{9}/g)];
+  let candidates = cleaned.split(/\n\s*\n+/).filter(Boolean);
+  if (phoneMatches.length > 1) {
+    candidates = phoneMatches.map((match) => cleaned.slice(Math.max(0, match.index - 160), Math.min(cleaned.length, match.index + 180)));
+  }
+  if (!candidates.length) candidates = [cleaned];
+  return candidates.map(buildTextRow).filter((row) => row.name || row.phone);
+}
+
+async function readPdfText(file) {
+  if (!window.pdfjsLib) throw new Error("PDF 解析库未加载");
+  const workerUrl = "../shared/vendor/pdf.worker.min.js";
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const pdf = await window.pdfjsLib.getDocument({ data: bytes }).promise;
+  const pageTexts = [];
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const content = await page.getTextContent();
+    pageTexts.push(content.items.map((item) => item.str).join("\n"));
+  }
+  return pageTexts.join("\n\n");
+}
+
+async function readPdfOcrText(file) {
+  if (!window.pdfjsLib) throw new Error("PDF 解析库未加载");
+  if (!window.Tesseract) throw new Error("OCR 解析库未加载");
+  const workerUrl = "../shared/vendor/pdf.worker.min.js";
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const pdf = await window.pdfjsLib.getDocument({ data: bytes }).promise;
+  const texts = [];
+  const maxPages = Math.min(pdf.numPages, 6);
+
+  for (let pageNumber = 1; pageNumber <= maxPages; pageNumber += 1) {
+    showToast(`正在 OCR 识别第 ${pageNumber}/${maxPages} 页，请稍等`);
+    const page = await pdf.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: context, viewport }).promise;
+    const worker = await window.Tesseract.createWorker("chi_sim+eng", 1, {
+      workerPath: "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js",
+      corePath: "https://cdn.jsdelivr.net/npm/tesseract.js-core@5",
+      langPath: "https://tessdata.projectnaptha.com/4.0.0",
+    });
+    const result = await worker.recognize(canvas);
+    await worker.terminate();
+    texts.push(result.data.text || "");
+  }
+  return texts.join("\n\n");
+}
+
+async function readDocxText(file) {
+  if (!window.mammoth) throw new Error("Word 解析库未加载");
+  const result = await window.mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+  return result.value || "";
+}
+
+async function readImportRows(file) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+    return readExcelRows(file);
+  }
+  if (name.endsWith(".docx")) {
+    return parseSurveyText(await readDocxText(file));
+  }
+  if (name.endsWith(".pdf")) {
+    const textRows = parseSurveyText(await readPdfText(file));
+    if (textRows.length) return textRows;
+    showToast("PDF 没有可复制文字，开始 OCR 识别");
+    return parseSurveyText(await readPdfOcrText(file));
+  }
+  return normalizeTableRows(parseDelimitedText(await file.text()));
+}
+
+async function importWjxFile() {
+  const file = $("#wjxFileInput")?.files?.[0];
+  if (!file) {
+    showToast("请先选择问卷星导出的文件");
+    return;
+  }
+  let rows = [];
+  try {
+    rows = await readImportRows(file);
+  } catch (error) {
+    showToast(error.message || "文件解析失败");
+    return;
+  }
+
+  if (!rows.length) {
+    showToast(file.name.toLowerCase().endsWith(".pdf") ? "PDF 没有可识别文字，可能是扫描件，需要 OCR" : "没有识别到姓名或电话，请检查文件内容");
+    return;
+  }
+
+  const response = await fetch("/api/import-enrollments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rows }),
+  });
+  if (!response.ok) {
+    showToast("导入失败，请检查文件格式");
+    return;
+  }
+  const result = await response.json();
+  mergeExternalData({ enrollments: result.imported, notices: [`已导入 ${result.imported.length} 条问卷星报名。`] });
+  showToast(`已导入 ${result.imported.length} 条报名`);
+  render();
+}
+
 function handleAction(action, data) {
   if (action === "go-enrollments") { state.active = "enrollments"; render(); return; }
   if (action === "go-resources") { state.active = "resources"; render(); return; }
   if (action === "go-attendance") { state.active = "attendance"; render(); return; }
   if (action === "refresh-external") { syncExternalData(true); return; }
-  if (action === "copy-enroll-url") { copyText(state.config.enrollUrl); return; }
+  if (action === "copy-enroll-url") { copyText(enrollTargetUrl()); return; }
   if (action === "copy-checkin-url") { copyText(state.config.checkinUrl); return; }
+  if (action === "copy-status-url") { copyText(state.config.statusUrl); return; }
+  if (action === "save-wjx-url") {
+    const value = $("#wjxUrlInput")?.value.trim() || "";
+    state.wjxEnrollUrl = value;
+    localStorage.setItem("guandian-wjx-enroll-url", value);
+    showToast(value ? "问卷星链接已保存，报名二维码已更新" : "问卷星链接已清空");
+    render();
+    return;
+  }
+  if (action === "clear-wjx-url") {
+    state.wjxEnrollUrl = "";
+    localStorage.removeItem("guandian-wjx-enroll-url");
+    showToast("已恢复内置报名问卷");
+    render();
+    return;
+  }
+  if (action === "import-wjx-file") {
+    importWjxFile();
+    return;
+  }
   if (action === "create-course") {
     openModal("发布新课程", `<div class="form-card"><label>课程名称<input id="newCourseTitle" value="光电创意实验课" /></label><label>活动时间<input id="newCourseDate" value="9月5日 09:30-15:30" /></label><label>活动地点<input id="newCoursePlace" value="光电实验教室 B" /></label><label>报名名额<input id="newCourseSeats" type="number" value="30" /></label></div>`, () => {
       state.courses.unshift({ id: Date.now(), title: $("#newCourseTitle").value, icon: "✦", date: $("#newCourseDate").value, place: $("#newCoursePlace").value, seats: Number($("#newCourseSeats").value) || 30, price: "299 元", status: "报名中" });
@@ -322,7 +595,13 @@ function handleAction(action, data) {
   }
   if (action === "approve" || action === "reject") {
     const item = state.enrollments.find((enrollment) => String(enrollment.id) === String(data.id));
-    item.status = action === "approve" ? "approved" : "rejected";
+    const status = action === "approve" ? "approved" : "rejected";
+    item.status = status;
+    fetch("/api/enrollment-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: item.id, status, enrollment: item }),
+    }).catch(() => showToast("审核状态暂未写入服务端，请检查服务是否运行"));
     state.notices.unshift(`${item.name} 的报名已${action === "approve" ? "通过" : "拒绝"}，通知已模拟发送。`);
     showToast(action === "approve" ? "报名已通过" : "报名已拒绝");
     render();

@@ -1,5 +1,6 @@
 const params = new URLSearchParams(location.search);
-const mode = params.get("mode") === "checkin" ? "checkin" : "enroll";
+const requestedMode = params.get("mode");
+const mode = requestedMode === "checkin" || requestedMode === "status" ? requestedMode : "enroll";
 const courseInput = document.querySelector("#courseInput");
 const resultBox = document.querySelector("#resultBox");
 const form = document.querySelector("#mobileForm");
@@ -26,6 +27,21 @@ async function loadConfig() {
 }
 
 function setupMode() {
+  if (mode === "status") {
+    setText("#modeName", "报名状态查询");
+    setText("#pageTitle", "查询报名状态");
+    setText("#pageIntro", "输入报名时填写的联系电话，查看审核结果和课程通知。");
+    setText("#submitButton", "查询状态");
+    document.querySelector("#nameInput").closest("label").style.display = "none";
+    document.querySelector("#parentField").style.display = "none";
+    document.querySelector("#courseInput").closest("label").style.display = "none";
+    document.querySelector("#schoolField").style.display = "none";
+    document.querySelector("#gradeField").style.display = "none";
+    document.querySelector("#emergencyField").style.display = "none";
+    document.querySelector("#noteField").style.display = "none";
+    return;
+  }
+
   if (mode === "checkin") {
     setText("#modeName", "现场签到");
     setText("#pageTitle", "扫码签到");
@@ -46,6 +62,24 @@ function setupMode() {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (mode === "status") {
+    const phone = document.querySelector("#phoneInput").value.trim();
+    try {
+      const response = await fetch(`/api/my-notifications?phone=${encodeURIComponent(phone)}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("查询失败");
+      const result = await response.json();
+      const enrollmentMarkup = result.enrollments.map((item) => {
+        const statusText = { pending: "待审核", approved: "已通过", rejected: "已拒绝" }[item.status] || item.status;
+        return `课程：${item.course}；状态：${statusText}`;
+      }).join("\n");
+      const noticeMarkup = result.notifications.map((item) => item.message).join("\n");
+      showResult(enrollmentMarkup || noticeMarkup ? `${enrollmentMarkup}\n${noticeMarkup}`.trim() : "暂未查询到报名信息，请确认手机号是否填写一致。", Boolean(enrollmentMarkup || noticeMarkup));
+    } catch {
+      showResult("查询失败，请稍后再试。", false);
+    }
+    return;
+  }
+
   const payload = {
     name: document.querySelector("#nameInput").value,
     parentName: document.querySelector("#parentInput").value,

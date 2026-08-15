@@ -1,2 +1,5 @@
 .git-alt/
+data/*.log
 data/*.json
+.wrangler/
+tools/

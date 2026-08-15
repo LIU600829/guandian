@@ -1,0 +1,9 @@
+name = "guandian-study-app"
+main = "worker.js"
+compatibility_date = "2026-08-15"
+workers_dev = true
+
+[assets]
+directory = "."
+binding = "ASSETS"
+not_found_handling = "none"

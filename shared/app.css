@@ -187,6 +187,14 @@ textarea { min-height: 98px; resize: vertical; }
 .certificate h3 { font-size: 24px; color: var(--yellow-deep); }
 .back-link { display: inline-flex; margin-bottom: 18px; color: var(--blue); font-size: 13px; font-weight: 800; }
 .empty-state { padding: 28px; border: 1px dashed var(--line); border-radius: var(--radius); color: var(--muted); text-align: center; }
+#resultBox { white-space: pre-wrap; line-height: 1.7; }
+.embedded-panel {
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fffdf7;
+}
 .qr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .qr-card { display: grid; gap: 12px; align-content: start; }
 .qr-image {

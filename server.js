@@ -11,6 +11,8 @@ const port = Number(process.env.PORT || 4175);
 const defaultStore = {
   enrollments: [],
   checkins: [],
+  wjxSubmissions: [],
+  userNotifications: [],
   notices: [],
 };
 
@@ -120,6 +122,22 @@ function cleanText(value, fallback = "") {
   return String(value || fallback).trim().slice(0, 80);
 }
 
+function findNestedValue(source, names) {
+  const queue = [source];
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || typeof current !== "object") continue;
+    for (const [key, value] of Object.entries(current)) {
+      const normalizedKey = key.toLowerCase();
+      if (names.some((name) => normalizedKey.includes(name.toLowerCase()) || key.includes(name))) {
+        if (!value || typeof value !== "object") return value;
+      }
+      if (value && typeof value === "object") queue.push(value);
+    }
+  }
+  return "";
+}
+
 async function handleApi(request, response, pathname) {
   if (request.method === "GET" && pathname === "/health") {
     sendJson(response, 200, { ok: true });
@@ -132,6 +150,7 @@ async function handleApi(request, response, pathname) {
       publicBaseUrl,
       enrollUrl: `${publicBaseUrl}/mobile/?mode=enroll`,
       checkinUrl: `${publicBaseUrl}/mobile/?mode=checkin`,
+      statusUrl: `${publicBaseUrl}/mobile/?mode=status`,
       courses: ["太阳能小车实验营", "城市微光观察课", "未来通信与光纤实验"],
     });
     return true;
@@ -139,6 +158,16 @@ async function handleApi(request, response, pathname) {
 
   if (request.method === "GET" && pathname === "/api/state") {
     sendJson(response, 200, readStore());
+    return true;
+  }
+
+  if (request.method === "GET" && pathname === "/api/my-notifications") {
+    const url = new URL(request.url, `http://${request.headers.host}`);
+    const phone = cleanText(url.searchParams.get("phone"));
+    const store = readStore();
+    const enrollments = store.enrollments.filter((item) => item.phone === phone);
+    const notifications = store.userNotifications.filter((item) => item.phone === phone);
+    sendJson(response, 200, { ok: true, enrollments, notifications });
     return true;
   }
 
@@ -189,6 +218,102 @@ async function handleApi(request, response, pathname) {
     store.notices.unshift(`${checkin.name} 已通过二维码完成签到。`);
     writeStore(store);
     sendJson(response, 201, { ok: true, checkin });
+    return true;
+  }
+
+  if (request.method === "POST" && pathname === "/api/wjx-webhook") {
+    const body = await readBody(request);
+    const store = readStore();
+    const enrollment = {
+      id: Date.now(),
+      name: cleanText(findNestedValue(body, ["学生姓名", "姓名", "name"]), "问卷星提交"),
+      parentName: cleanText(findNestedValue(body, ["家长姓名", "parent"])),
+      course: cleanText(findNestedValue(body, ["课程", "course"]), "问卷星报名"),
+      role: "学生",
+      phone: cleanText(findNestedValue(body, ["联系电话", "手机", "电话", "phone"]), "未填写电话"),
+      school: cleanText(findNestedValue(body, ["学校", "school"])),
+      grade: cleanText(findNestedValue(body, ["年级", "班级", "grade"])),
+      emergencyPhone: cleanText(findNestedValue(body, ["紧急联系人", "备用电话", "emergency"])),
+      note: cleanText(findNestedValue(body, ["备注", "补充说明", "note"])),
+      status: "pending",
+      source: "问卷星",
+      createdAt: new Date().toISOString(),
+    };
+    store.wjxSubmissions.unshift({ id: enrollment.id, raw: body, createdAt: enrollment.createdAt });
+    store.enrollments.unshift(enrollment);
+    store.notices.unshift(`${enrollment.name} 通过问卷星提交了报名。`);
+    writeStore(store);
+    sendJson(response, 201, { ok: true, enrollment });
+    return true;
+  }
+
+  if (request.method === "POST" && pathname === "/api/import-enrollments") {
+    const body = await readBody(request);
+    const store = readStore();
+    const rows = Array.isArray(body.rows) ? body.rows : [];
+    const imported = rows.map((row, index) => ({
+      id: Date.now() + index,
+      name: cleanText(row.name || row["学生姓名"] || row["姓名"], "未填写姓名"),
+      parentName: cleanText(row.parentName || row["家长姓名"]),
+      course: cleanText(row.course || row["报名课程"] || row["课程"], "问卷星导入"),
+      role: "学生",
+      phone: cleanText(row.phone || row["联系电话"] || row["手机号"] || row["手机"] || row["电话"], "未填写电话"),
+      school: cleanText(row.school || row["所在学校"] || row["学校"]),
+      grade: cleanText(row.grade || row["年级班级"] || row["年级"] || row["班级"]),
+      emergencyPhone: cleanText(row.emergencyPhone || row["紧急联系人"] || row["备用电话"]),
+      note: cleanText(row.note || row["补充说明"] || row["备注"]),
+      status: "pending",
+      source: "问卷星导入",
+      createdAt: new Date().toISOString(),
+    }));
+    store.enrollments.unshift(...imported);
+    store.notices.unshift(`已从问卷星表格导入 ${imported.length} 条报名。`);
+    writeStore(store);
+    sendJson(response, 201, { ok: true, imported });
+    return true;
+  }
+
+  if (request.method === "POST" && pathname === "/api/enrollment-status") {
+    const body = await readBody(request);
+    const store = readStore();
+    const status = cleanText(body.status, "pending");
+    const id = String(body.id || "");
+    let enrollment = store.enrollments.find((item) => String(item.id) === id);
+
+    if (enrollment) {
+      enrollment.status = status;
+      enrollment.reviewedAt = new Date().toISOString();
+    } else if (body.enrollment) {
+      enrollment = {
+        ...body.enrollment,
+        id: body.enrollment.id || Date.now(),
+        status,
+        reviewedAt: new Date().toISOString(),
+      };
+      store.enrollments.unshift(enrollment);
+    }
+
+    if (!enrollment) {
+      sendJson(response, 404, { ok: false, message: "未找到报名记录" });
+      return true;
+    }
+
+    const resultText = status === "approved" ? "通过" : "拒绝";
+    const message = `${enrollment.name}，你报名的“${enrollment.course}”已审核${resultText}。`;
+    store.userNotifications.unshift({
+      id: Date.now(),
+      phone: enrollment.phone,
+      name: enrollment.name,
+      course: enrollment.course,
+      status,
+      message,
+      createdAt: new Date().toISOString(),
+      channel: "站内通知",
+    });
+    enrollment.notifiedAt = new Date().toISOString();
+    store.notices.unshift(`${enrollment.name} 的报名已${resultText}，用户通知已生成。`);
+    writeStore(store);
+    sendJson(response, 200, { ok: true, enrollment });
     return true;
   }
 
